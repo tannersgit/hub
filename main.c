@@ -68,6 +68,9 @@
 
 #include "system.h"
 #include "radio.h"
+#include "hub.h"
+#include "hub_service.h"
+#include "enocean.h"
 
 
 
@@ -96,49 +99,48 @@ static void timers_init(void)
 
 
 
-//test switch teacher
-/*void switch_teaching_test( void )
+void comms_test( void )
 {
 	static uint8_t sent = 0;
 	if( hub.switches[0].ID != 0 && hub.nodes[0].ID != 0 && sent == 0 )
 	{
-		inspired_packet_send_assign_switch( hub.switches[0].ID, hub.switches[0].mask, hub.nodes[0].ID );
-		sent = 1;
+		inspired_packet_send_assign_switch( hub.switches[0].ID, hub.switches[0].mask, hub.nodes[0].ID );	//teach switch
+		inspired_packet_send_change_state( 500, 500, hub.nodes[0].ID );																		//change state
+		sent = 1;																																													//dont do it again
 	}
-}*/
+}
+
 
 
 //Test advertising
 void broadcast_test( void )
 {
-	static uint16_t 	count = 1;
-	uint8_t 					data[BLE_ADV_BYTES_MAX];
+	static uint16_t 	count = 0;
 	
-	//construct packet
-	for( int i = 0; i < 8; i++ )
-		data[i] = 0xFF >> i;
+	switch( count % 6 ){
+		case 0: 
+			inspired_packet_send_hello_node( 0xDEADB33F );
+			break;
+		case 1:
+			inspired_packet_send_node_my_node( 0xD34DBEEF );
+			break;
+		case 2:
+			inspired_packet_send_assign_switch( 0xE215E215, 0xAA, 0xD3ADB33F );
+			break;
+		case 3:
+			inspired_packet_send_remove_switch( 0xE215E215, SWITCH_MASK_B, 0xDEADBEEF );
+			break;
+		case 4:
+			inspired_packet_send_change_state( 10000, 5000, 0xDE4D3EEF );
+			break;
+		case 5:
+			inspired_packet_send_assign_group( 0xBA77A7A5, 0xDEADBEAF );
+			break;			
+		}
 	
-	//increment packet count (final two bytes)
 	count++;
-	data[8] = (count & 0xFF00) >> 8;
-	data[9] = (count & 0x00FF) >> 0;
-	
-	//send packet to outbox
-	packet_push_outbox( data, 10 );
-	
-	count++;
-	data[8] = (count & 0xFF00) >> 8;
-	data[9] = (count & 0x00FF) >> 0;
-	packet_push_outbox( data, 10 );
 }
 
-
-uint32_t timer = 0;
-uint32_t timer_shadow = 0;
-void timer_increment_task( void )
-{
-	timer++;
-}
 
 /**@brief Function for application main entry.
  */
@@ -147,40 +149,30 @@ int main(void)
 	// Initialize.
 	timers_init();								//NRF library uses this for button polling, replace eventually
 	leds_init();
-	buttons_init();
+	//buttons_init();
 	
-	//memset( (void*) &hub, 0, sizeof(hub) );
+	memset( (void*) &hub, 0, sizeof(hub) );
 	
 	sys_init();
-	//packet_handler_init();
+	packet_handler_init();
 	
 	ble_stack_init();
-	
 	gap_params_init();
 	gatt_init();
 	conn_params_init();
+	
 	services_init();
 	advertising_init();
 	advertising_start();
 	
 	observe_start();
 	
-	//sys_task( broadcast_test, 3000 );
-	sys_task( timer_increment_task, 1 );	//packet handling moved to sys task via packet_handling_init
+	//sys_task( broadcast_test, 1000 );
 	
 	// Enter main loop.
 	while( true )
 	{
-		if( timer != timer_shadow )
-		{
-			if( timer % 3000 == 0 )
-				broadcast_test();
-			
-			if( timer % 333 == 0 && timer != timer_shadow )
-				packet_handler();
-		}
-		
-		timer_shadow = timer;
+		//comms_test();
 	}
 }
 

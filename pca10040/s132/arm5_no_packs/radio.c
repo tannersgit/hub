@@ -17,12 +17,13 @@
 //#include "nrf_sdh_ble.h"
 //#include "nrf_log_ctrl.h"
 //#include "nrf_log_default_backends.h"
+//#include "ble_lbs.h"
+
 #include "boards.h"
 #include "app_timer.h"
 #include "app_button.h"
 #include "ble_advdata.h"
 #include "ble_conn_params.h"
-#include "ble_lbs.h"
 #include "nrf_ble_gatt.h"
 #include "nrf_ble_qwr.h"
 #include "nrf_log.h"
@@ -32,9 +33,10 @@
 #include "hub.h"
 #include "enocean.h"
 #include "system.h"
+#include "hub_service.h"
 
 /* Module Instances */
-BLE_LBS_DEF(m_lbs);																															//LED Button Service instance
+HUB_SERVICE_DEF(m_hub_service);																															//LED Button Service instance
 NRF_BLE_GATT_DEF(m_gatt);																												//GATT module instance. 
 NRF_BLE_QWRS_DEF(m_qwr, NRF_SDH_BLE_TOTAL_LINK_COUNT);													//Context for the Queued Write module.
 
@@ -47,7 +49,7 @@ static uint8_t m_adv_handle = BLE_GAP_ADV_SET_HANDLE_NOT_SET;										//Adverti
 /* Connectable Advertising Data */
 static uint8_t m_enc_advdata[BLE_GAP_ADV_SET_DATA_SIZE_MAX];              			//Buffer for storing an encoded advertising set. 
 static uint8_t m_enc_scan_response_data[BLE_GAP_ADV_SET_DATA_SIZE_MAX];					//Buffer for storing an encoded scan data. 
-static ble_gap_adv_data_t m_adv_data =
+static ble_gap_adv_data_t m_adv_data =																					//Structure containing connectable advertising data
 {
 	.adv_data =
 	{
@@ -75,8 +77,8 @@ static		ble_gap_adv_data_t 	m_bcast_data =																		//structure that con
 };
 
 /* Observer Data */	
-static uint8_t ad_buffer[BLE_GAP_SCAN_BUFFER_MIN];
-static ble_data_t observerAdBuf = 
+static uint8_t 								ad_buffer[BLE_GAP_SCAN_BUFFER_MIN];
+static ble_data_t 						observerAdBuf = 
 {
 	ad_buffer,
 	BLE_GAP_SCAN_BUFFER_MIN
@@ -117,12 +119,11 @@ static ble_gap_scan_params_t scanParameters =
 
 
 
-
 /**@brief Function for handling events from the button handler module.
  *
  * @param[in] pin_no        The pin that the event applies to.
  * @param[in] button_action The button action (press/release).
- */
+
 static void button_event_handler(uint8_t pin_no, uint8_t button_action)
 {
     ret_code_t err_code;
@@ -145,11 +146,11 @@ static void button_event_handler(uint8_t pin_no, uint8_t button_action)
             APP_ERROR_HANDLER(pin_no);
             break;
     }
-}
+} */
 
 
 /**@brief Function for initializing the button handler module.
- */
+
 void buttons_init(void)
 {
     ret_code_t err_code;
@@ -163,7 +164,7 @@ void buttons_init(void)
     err_code = app_button_init(buttons, ARRAY_SIZE(buttons),
                                BUTTON_DETECTION_DELAY);
     APP_ERROR_CHECK(err_code);
-}
+} */
 
 
 
@@ -225,7 +226,7 @@ static void packet_buffer_push( volatile packet_buffer_t* pbuf, uint8_t* packet,
 		}
 		
 		if( i == PACKET_BUFFER_SIZE - 1 )
-			i = -1;//will be incremented to zero
+			i = -1;//will be incremented to zero at top of for-loop
 	}
 	
 	//record new packet
@@ -289,12 +290,17 @@ static void packet_restore_previous( volatile packet_buffer_t* pbuf )
 	pbuf->tail = new_tail;
 }
 
-/*
+
 void packet_push_outbox( uint8_t* packet, uint8_t length )
 {
 	packet_buffer_push( &packet_outbox, packet, length );
 }
-*/
+
+void packet_push_inbox( uint8_t* packet, uint8_t length )
+{
+	packet_buffer_push( &packet_inbox, packet, length );
+}
+
 
 /**@brief Function for regularly handling incoming and outgoing packets
  *					Register as a system task, called at regular intervals
@@ -326,7 +332,7 @@ void packet_handler( void )
 
 void packet_handler_init( void )
 {
-	sys_task( packet_handler, 333 );
+	sys_task( packet_handler, BROADCAST_DELAY );
 }
 
 
@@ -531,7 +537,7 @@ void gatt_init(void)
 
 
 
-/**@brief Function for initializing the Advertising functionality.
+/**@brief Function for initializing the Connectable Advertising functionality.
  *
  * @details Encodes the required advertising data and passes it to the stack.
  *          Also builds a structure to be passed to the stack when starting advertising.
@@ -542,7 +548,7 @@ void advertising_init(void)
     ble_advdata_t advdata;
     ble_advdata_t srdata;
 
-    ble_uuid_t adv_uuids[] = {{LBS_UUID_SERVICE, m_lbs.uuid_type}};
+    ble_uuid_t adv_uuids[] = {{HUB_UUID_SERVICE, m_hub_service.uuid_type}};
 
     // Build and set advertising data.
     memset(&advdata, 0, sizeof(advdata));
@@ -599,7 +605,7 @@ static void nrf_qwr_error_handler(uint32_t nrf_error)
  *
  * @param[in] p_lbs     Instance of LED Button Service to which the write applies.
  * @param[in] led_state Written/desired state of the LED.
- */
+
 static void led_write_handler(uint16_t conn_handle, ble_lbs_t * p_lbs, uint8_t led_state)
 {
     if (led_state)
@@ -613,8 +619,55 @@ static void led_write_handler(uint16_t conn_handle, ble_lbs_t * p_lbs, uint8_t l
         NRF_LOG_INFO("Received LED OFF!");
     }
 }
+ */
+ 
+static void service_handler_assign_switch(uint16_t conn_handle, hub_service_t* p_hub_service, uint8_t* data)
+{
+	uint32_t targetID 	= (data[0]  << 24) | (data[1]  << 16) | (data[2] <<  8) | (data[3] <<  0);
+	uint32_t switchID 	= (data[4]  << 24) | (data[5]  << 16) | (data[6] <<  8) | (data[7] <<  0);
+	uint8_t  switchMask =  data[8];	//ensure mask is valid
+	
+	inspired_packet_send_assign_switch( switchID, switchMask, targetID );
+}
 
+static void service_handler_remove_switch(uint16_t conn_handle, hub_service_t* p_hub_service, uint8_t* data)
+{
+	uint32_t targetID 	= (data[0]  << 24) | (data[1]  << 16) | (data[2] <<  8) | (data[3] <<  0);
+	uint32_t switchID 	= (data[4]  << 24) | (data[5]  << 16) | (data[6] <<  8) | (data[7] <<  0);
+	uint8_t  switchMask =  data[8];	//ensure mask is valid
+	
+	inspired_packet_send_remove_switch( switchID, switchMask, targetID );
+}
 
+static void service_handler_change_state(uint16_t conn_handle, hub_service_t* p_hub_service, uint8_t* data)
+{
+	uint32_t targetID 	= (data[0]  << 24) | (data[1]  << 16) | (data[2] <<  8) | (data[3] <<  0);
+	uint16_t brightness = (data[4]  <<  8) | (data[5]  <<  0);
+	uint16_t color1 		= (data[6]  <<  8) | (data[7]  <<  0);
+	uint16_t color2 		= (data[8]  <<  8) | (data[9]  <<  0);
+	uint16_t color3 		= (data[10] <<  8) | (data[11] <<  0);
+	uint16_t color4			= (data[12] <<  8) | (data[13] <<  0);
+	
+	inspired_packet_send_change_state( brightness, color1, targetID );
+}
+
+static void service_handler_assign_group(uint16_t conn_handle, hub_service_t* p_hub_service, uint8_t* data)
+{
+	uint32_t nodeID 	= (data[0]  << 24) | (data[1]  << 16) | (data[2] <<  8) | (data[3] <<  0);
+	uint32_t groupID 	= (data[4]  << 24) | (data[5]  << 16) | (data[6] <<  8) | (data[7] <<  0);
+	
+	inspired_packet_send_assign_group( groupID, nodeID );
+}
+
+static void service_handler_set_time( uint16_t conn_handle, hub_service_t* p_hub_service, uint8_t* data )
+{
+	uint8_t day			= data[0];
+	uint8_t hour		= data[1];
+	uint8_t minute	= data[2];
+	uint8_t second	= data[3];
+	
+	//TODO: update time
+}
 
 
 /**@brief Function for initializing services that will be used by the application.
@@ -622,8 +675,8 @@ static void led_write_handler(uint16_t conn_handle, ble_lbs_t * p_lbs, uint8_t l
 void services_init(void)
 {
     ret_code_t         err_code;
-    ble_lbs_init_t     init     = {0};
     nrf_ble_qwr_init_t qwr_init = {0};
+    hub_service_init_t init     = {0};
 
     // Initialize Queued Write Module.
     qwr_init.error_handler = nrf_qwr_error_handler;
@@ -634,10 +687,15 @@ void services_init(void)
 			APP_ERROR_CHECK(err_code);
 		}
 
-    // Initialize LBS.
-    init.led_write_handler = led_write_handler;
+    // Initialize HUB Service by defining characteristic handler functions.
+    init.service_handler_assign_switch	= service_handler_assign_switch;
+		init.service_handler_remove_switch	= service_handler_remove_switch;
+		init.service_handler_change_state 	= service_handler_change_state;
+		init.service_handler_assign_group		= service_handler_assign_group;
+		init.service_handler_set_time				= service_handler_set_time;
+		
 
-    err_code = ble_lbs_init(&m_lbs, &init);
+    err_code = hub_service_init(&m_hub_service, &init);
     APP_ERROR_CHECK(err_code);
 }
 

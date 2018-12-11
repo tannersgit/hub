@@ -18,15 +18,20 @@
 
 #define DESTINATION_ID_BROADCAST				0xFFFFFFFF
 
+//Node Packets
 #define INSPIRED_MESSAGE_HELLO_HUB			0x05021988
-#define INSPIRED_MESSAGE_HELLO_NODE			0x01192004
 #define INSPIRED_MESSAGE_HUB_MY_HUB			0x01192017
-#define INSPIRED_MESSAGE_NODE_MY_NODE		0x01192018
+#define INSPIRED_MESSAGE_GOT_IT					0x60717B55
+#define INSPIRED_MESSAGE_UPDATE					0xD7A57A7E
 
+//HUB Packets
+#define INSPIRED_MESSAGE_HELLO_NODE			0x01192004
+#define INSPIRED_MESSAGE_NODE_MY_NODE		0x01192018
 #define INSPIRED_MESSAGE_ASSIGN_SWITCH	0xADD1E215
 #define INSPIRED_MESSAGE_REMOVE_SWITCH	0xDEADE215
+#define INSPIRED_MESSAGE_CHANGE_STATE		0x57A7ED7A
+#define INSPIRED_MESSAGE_ASSIGN_GROUP		0xC1A55D3F
 
-#define INSPIRED_MESSAGE_GOT_IT					0x60717B55
 
 #define HUB_PIN_LED											19
 
@@ -68,10 +73,12 @@ volatile extern hub_t hub;
 void hub_pins_init( void );
 void hub_output( bool on );
 
-void inspired_packet_send_assign_switch( uint32_t switchID, uint32_t switchMask, uint32_t nodeID );
+void inspired_packet_send_hello_node( uint32_t nodeID );
 void inspired_packet_send_node_my_node( uint32_t nodeID );
-void inspired_packet_send_node_my_node( uint32_t nodeID );
-
+void inspired_packet_send_assign_switch( uint32_t switchID, uint8_t switchMask, uint32_t nodeID );
+void inspired_packet_send_remove_switch( uint32_t switchID, uint8_t switchMask, uint32_t nodeID );
+void inspired_packet_send_change_state( uint16_t brightness, uint16_t color, uint32_t nodeID );
+void inspired_packet_send_assign_group( uint32_t groupID, uint32_t nodeID );
 
 #endif // RADIO_H__
 

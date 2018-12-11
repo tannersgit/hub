@@ -45,7 +45,8 @@
 
 
 #define BROADCAST_COMPANY_ID        		0xFFFF
-#define BROADCAST_LENGTH_MAX        		27
+#define BROADCAST_LENGTH_MAX        		27																			//Maximum number of data bytes per broadcast packet (not including manufacturer info, etc)
+#define BROADCAST_DELAY									200																			//Number of ms to wait between broadcasting new packets
 
 
 

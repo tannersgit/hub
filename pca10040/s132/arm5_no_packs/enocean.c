@@ -33,4 +33,3 @@ void enocean_switch_handler( uint32_t id, uint8_t status )
 		hub_output( false );
 	}
 }
-
